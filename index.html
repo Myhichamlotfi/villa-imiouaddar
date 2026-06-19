@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Imiouaddar · Gestion Villa</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg: #0F1A1C;
+  --surface: #172224;
+  --card: #1E2E31;
+  --border: rgba(255,255,255,0.07);
+  --accent: #4ECDC4;
+  --accent2: #FF6B6B;
+  --gold: #F7C948;
+  --text: #E8F4F4;
+  --muted: #6B8F91;
+  --green: #52D68A;
+  --red: #FF6B6B;
+  --orange: #FFB347;
+  --r: 10px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;}
+
+/* LAYOUT */
+.app{display:flex;flex-direction:column;min-height:100vh;}
+
+/* TOP BAR */
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:100;}
+.topbar-brand{display:flex;align-items:center;gap:10px;}
+.topbar-logo{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.topbar-name{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--text);}
+.topbar-sub{font-size:10px;color:var(--muted);margin-top:1px;}
+
+/* NAV */
+.nav{display:flex;gap:4px;}
+.nav-btn{background:none;border:none;color:var(--muted);font-size:12px;font-family:'Inter',sans-serif;padding:7px 12px;border-radius:7px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.nav-btn:hover{color:var(--text);background:var(--card);}
+.nav-btn.active{color:var(--accent);background:rgba(78,205,196,0.1);font-weight:600;}
+
+/* CONTENT */
+.content{flex:1;padding:20px;max-width:1000px;margin:0 auto;width:100%;}
+
+/* VIEWS */
+.view{display:none;}
+.view.active{display:block;}
+
+/* KPI ROW */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+.kpi{background:var(--card);border-radius:var(--r);padding:16px;border:1px solid var(--border);}
+.kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;}
+.kpi-val{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--text);line-height:1;}
+.kpi-val .unit{font-size:12px;font-weight:400;color:var(--muted);margin-left:3px;}
+.kpi-note{font-size:10px;color:var(--muted);margin-top:4px;}
+.kpi.accent{border-color:rgba(78,205,196,0.3);}
+.kpi.green-k{border-color:rgba(82,214,138,0.3);}
+.kpi.red-k{border-color:rgba(255,107,107,0.3);}
+.kpi.gold-k{border-color:rgba(247,201,72,0.3);}
+
+/* SECTION HEADER */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.section-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;}
+.btn{background:var(--accent);color:#0F1A1C;border:none;padding:8px 16px;border-radius:7px;font-size:12px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px;}
+.btn:hover{opacity:0.85;transform:translateY(-1px);}
+.btn.secondary{background:var(--card);color:var(--text);border:1px solid var(--border);}
+.btn.danger{background:rgba(255,107,107,0.15);color:var(--red);border:1px solid rgba(255,107,107,0.3);}
+.btn.sm{padding:5px 10px;font-size:11px;}
+
+/* TABLE */
+.table-wrap{background:var(--card);border-radius:var(--r);border:1px solid var(--border);overflow:hidden;margin-bottom:20px;}
+.table-head{display:grid;padding:10px 16px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border);font-weight:600;}
+.table-row{display:grid;padding:12px 16px;border-bottom:1px solid var(--border);align-items:center;transition:background .15s;cursor:default;}
+.table-row:last-child{border-bottom:none;}
+.table-row:hover{background:rgba(255,255,255,0.02);}
+
+/* RESERVATIONS */
+.res-grid{grid-template-columns:60px 1fr 90px 90px 80px 80px 90px;}
+.res-head{grid-template-columns:60px 1fr 90px 90px 80px 80px 90px;}
+
+/* PAYMENTS */
+.pay-grid{grid-template-columns:60px 1fr 90px 90px 80px 90px;}
+.pay-head{grid-template-columns:60px 1fr 90px 90px 80px 90px;}
+
+/* FRAIS */
+.fra-grid{grid-template-columns:80px 1fr 90px 80px 90px;}
+.fra-head{grid-template-columns:80px 1fr 90px 80px 90px;}
+
+/* BADGE */
+.badge{display:inline-block;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:600;white-space:nowrap;}
+.badge-paid{background:rgba(82,214,138,0.15);color:var(--green);}
+.badge-partial{background:rgba(247,201,72,0.15);color:var(--gold);}
+.badge-unpaid{background:rgba(255,107,107,0.15);color:var(--red);}
+.badge-conf{background:rgba(78,205,196,0.15);color:var(--accent);}
+.badge-cancel{background:rgba(255,107,107,0.1);color:var(--red);}
+.badge-pend{background:rgba(107,143,145,0.2);color:var(--muted);}
+
+/* APPARTS GRID */
+.apparts-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;}
+.appart-tile{background:var(--card);border-radius:var(--r);padding:14px;border:1px solid var(--border);text-align:center;}
+.appart-tile .a-num{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--accent);}
+.appart-tile .a-name{font-size:11px;color:var(--text);margin-top:2px;font-weight:600;}
+.appart-tile .a-status{font-size:10px;color:var(--muted);margin-top:4px;}
+.appart-tile .a-rev{font-size:13px;font-weight:600;color:var(--green);margin-top:8px;}
+.appart-tile.occupied{border-color:rgba(255,179,71,0.4);background:rgba(255,179,71,0.05);}
+.appart-tile.occupied .a-num{color:var(--orange);}
+
+/* CALENDAR MINI */
+.cal-month{background:var(--card);border-radius:var(--r);border:1px solid var(--border);padding:16px;margin-bottom:20px;}
+.cal-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+.cal-day-label{text-align:center;font-size:9px;text-transform:uppercase;color:var(--muted);padding:4px 0;letter-spacing:0.5px;}
+.cal-day{text-align:center;font-size:11px;padding:5px 2px;border-radius:5px;cursor:default;min-height:26px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1px;}
+.cal-day.empty{opacity:0;}
+.cal-day.today{background:rgba(78,205,196,0.2);color:var(--accent);font-weight:700;}
+.cal-day.has-res{background:rgba(82,214,138,0.15);color:var(--green);}
+.cal-day.has-res .cal-dot{display:block;}
+.cal-dot{width:4px;height:4px;border-radius:50%;background:var(--green);display:none;}
+.cal-day.past{color:var(--muted);}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
+.modal-overlay.hidden{display:none;}
+.modal{background:var(--card);border-radius:14px;border:1px solid var(--border);padding:24px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto;}
+.modal h3{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;margin-bottom:20px;color:var(--text);}
+.form-row{margin-bottom:14px;}
+.form-row label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);margin-bottom:5px;font-weight:600;}
+.form-row input,.form-row select,.form-row textarea{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:9px 12px;color:var(--text);font-size:13px;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{border-color:var(--accent);}
+.form-row select option{background:var(--card);}
+.form-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;}
+
+/* SOLDE BANNER */
+.solde-banner{background:linear-gradient(135deg,rgba(78,205,196,0.1),rgba(82,214,138,0.05));border:1px solid rgba(78,205,196,0.2);border-radius:var(--r);padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px;}
+.solde-item{text-align:center;}
+.solde-item .s-val{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;}
+.solde-item .s-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:40px 20px;color:var(--muted);}
+.empty-icon{font-size:36px;margin-bottom:8px;}
+.empty p{font-size:13px;}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#0F1A1C;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:300;opacity:0;transition:opacity .3s;pointer-events:none;}
+.toast.show{opacity:1;}
+
+/* RESPONSIVE */
+@media(max-width:700px){
+  .kpi-row{grid-template-columns:repeat(2,1fr);}
+  .apparts-grid{grid-template-columns:repeat(5,1fr);}
+  .nav-btn{padding:7px 8px;font-size:11px;}
+  .res-grid,.res-head{grid-template-columns:50px 1fr 80px 70px 70px;}
+  .res-grid>*:nth-child(6),.res-grid>*:nth-child(7),.res-head>*:nth-child(6),.res-head>*:nth-child(7){display:none;}
+  .pay-grid,.pay-head{grid-template-columns:50px 1fr 80px 70px;}
+  .pay-grid>*:nth-child(5),.pay-grid>*:nth-child(6),.pay-head>*:nth-child(5),.pay-head>*:nth-child(6){display:none;}
+  .fra-grid,.fra-head{grid-template-columns:70px 1fr 80px 70px;}
+  .fra-grid>*:last-child,.fra-head>*:last-child{display:none;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-logo">🌊</div>
+    <div>
+      <div class="topbar-name">Imiouaddar</div>
+      <div class="topbar-sub">Villa · 5 appartements (n°2–6)</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <button class="nav-btn active" onclick="showView('dashboard')">📊 Dashboard</button>
+    <button class="nav-btn" onclick="showView('reservations')">🗓 Réservations</button>
+    <button class="nav-btn" onclick="showView('paiements')">💵 Paiements</button>
+    <button class="nav-btn" onclick="showView('frais')">🔧 Frais</button>
+  </nav>
+</div>
+
+<div class="content">
+
+<!-- ==================== DASHBOARD ==================== -->
+<div class="view active" id="view-dashboard">
+  <div class="kpi-row" id="kpi-row"></div>
+
+  <div class="solde-banner" id="solde-banner"></div>
+
+  <div class="section-header">
+    <div class="section-title">Appartements</div>
+  </div>
+  <div class="apparts-grid" id="apparts-grid"></div>
+
+  <div class="section-header">
+    <div class="section-title">Juillet 2026</div>
+    <div id="cal-nav" style="display:flex;gap:6px;">
+      <button class="btn secondary sm" onclick="changeMonth(-1)">‹</button>
+      <button class="btn secondary sm" onclick="changeMonth(1)">›</button>
+    </div>
+  </div>
+  <div class="cal-month" id="cal-month"></div>
+
+  <div class="section-header">
+    <div class="section-title">Réservations récentes</div>
+  </div>
+  <div id="recent-res"></div>
+</div>
+
+<!-- ==================== RESERVATIONS ==================== -->
+<div class="view" id="view-reservations">
+  <div class="section-header">
+    <div class="section-title">Toutes les réservations</div>
+    <button class="btn" onclick="openModal('res')">+ Nouvelle réservation</button>
+  </div>
+  <div class="table-wrap">
+    <div class="table-head res-head">
+      <div>Appt</div><div>Locataire</div><div>Arrivée</div><div>Départ</div><div>Nuits</div><div>Total</div><div>Statut</div>
+    </div>
+    <div id="res-table-body"></div>
+  </div>
+</div>
+
+<!-- ==================== PAIEMENTS ==================== -->
+<div class="view" id="view-paiements">
+  <div class="section-header">
+    <div class="section-title">Paiements encaissés</div>
+    <button class="btn" onclick="openModal('pay')">+ Enregistrer paiement</button>
+  </div>
+  <div class="table-wrap">
+    <div class="table-head pay-head">
+      <div>Appt</div><div>Locataire</div><div>Date</div><div>Montant</div><div>Mode</div><div>Statut rés.</div>
+    </div>
+    <div id="pay-table-body"></div>
+  </div>
+</div>
+
+<!-- ==================== FRAIS ==================== -->
+<div class="view" id="view-frais">
+  <div class="section-header">
+    <div class="section-title">Frais & Dépenses</div>
+    <button class="btn" onclick="openModal('fra')">+ Ajouter frais</button>
+  </div>
+  <div class="table-wrap">
+    <div class="table-head fra-head">
+      <div>Date</div><div>Description</div><div>Montant</div><div>Appt</div><div>Catégorie</div>
+    </div>
+    <div id="fra-table-body"></div>
+  </div>
+</div>
+
+</div><!-- end content -->
+</div><!-- end app -->
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- MODAL RESERVATION -->
+<div class="modal-overlay hidden" id="modal-res">
+<div class="modal">
+  <h3>🗓 Nouvelle réservation</h3>
+  <div class="form-row">
+    <label>Appartement</label>
+    <select id="res-appt">
+      <option value="2">Appartement 2</option>
+      <option value="3">Appartement 3</option>
+      <option value="4">Appartement 4</option>
+      <option value="5">Appartement 5</option>
+      <option value="6">Appartement 6</option>
+    </select>
+  </div>
+  <div class="form-row">
+    <label>Nom du locataire</label>
+    <input type="text" id="res-nom" placeholder="Ex: Mohammed Alami">
+  </div>
+  <div class="form-row">
+    <label>Téléphone</label>
+    <input type="tel" id="res-tel" placeholder="+212 6XX XXX XXX">
+  </div>
+  <div class="form-2col">
+    <div class="form-row">
+      <label>Arrivée</label>
+      <input type="date" id="res-arrive">
+    </div>
+    <div class="form-row">
+      <label>Départ</label>
+      <input type="date" id="res-depart">
+    </div>
+  </div>
+  <div class="form-2col">
+    <div class="form-row">
+      <label>Prix / nuit (DH)</label>
+      <input type="number" id="res-prix" placeholder="300">
+    </div>
+    <div class="form-row">
+      <label>Statut</label>
+      <select id="res-statut">
+        <option value="confirmé">Confirmé</option>
+        <option value="en attente">En attente</option>
+        <option value="annulé">Annulé</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-row">
+    <label>Notes</label>
+    <textarea id="res-notes" rows="2" placeholder="Ex: 4 personnes, vue mer demandée..."></textarea>
+  </div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeModal('res')">Annuler</button>
+    <button class="btn" onclick="saveRes()">Enregistrer</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL PAIEMENT -->
+<div class="modal-overlay hidden" id="modal-pay">
+<div class="modal">
+  <h3>💵 Enregistrer un paiement</h3>
+  <div class="form-row">
+    <label>Appartement</label>
+    <select id="pay-appt">
+      <option value="2">Appartement 2</option>
+      <option value="3">Appartement 3</option>
+      <option value="4">Appartement 4</option>
+      <option value="5">Appartement 5</option>
+      <option value="6">Appartement 6</option>
+    </select>
+  </div>
+  <div class="form-row">
+    <label>Nom du locataire</label>
+    <input type="text" id="pay-nom" placeholder="Ex: Mohammed Alami">
+  </div>
+  <div class="form-2col">
+    <div class="form-row">
+      <label>Date</label>
+      <input type="date" id="pay-date">
+    </div>
+    <div class="form-row">
+      <label>Montant (DH)</label>
+      <input type="number" id="pay-montant" placeholder="1200">
+    </div>
+  </div>
+  <div class="form-2col">
+    <div class="form-row">
+      <label>Mode de paiement</label>
+      <select id="pay-mode">
+        <option value="Espèces">💵 Espèces</option>
+        <option value="Virement">🏦 Virement</option>
+        <option value="Chèque">📄 Chèque</option>
+        <option value="Mobile">📱 Mobile (CIH/Wafacash)</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Type</label>
+      <select id="pay-type">
+        <option value="Acompte">Acompte</option>
+        <option value="Solde">Solde</option>
+        <option value="Paiement complet">Paiement complet</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-row">
+    <label>Notes</label>
+    <input type="text" id="pay-notes" placeholder="Ex: Reste 500 DH à l'arrivée">
+  </div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeModal('pay')">Annuler</button>
+    <button class="btn" onclick="savePay()">Enregistrer</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL FRAIS -->
+<div class="modal-overlay hidden" id="modal-fra">
+<div class="modal">
+  <h3>🔧 Ajouter un frais</h3>
+  <div class="form-2col">
+    <div class="form-row">
+      <label>Date</label>
+      <input type="date" id="fra-date">
+    </div>
+    <div class="form-row">
+      <label>Appartement</label>
+      <select id="fra-appt">
+        <option value="Commun">Commun (villa)</option>
+        <option value="2">Appartement 2</option>
+        <option value="3">Appartement 3</option>
+        <option value="4">Appartement 4</option>
+        <option value="5">Appartement 5</option>
+        <option value="6">Appartement 6</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-row">
+    <label>Description</label>
+    <input type="text" id="fra-desc" placeholder="Ex: Remplacement robinet cuisine">
+  </div>
+  <div class="form-2col">
+    <div class="form-row">
+      <label>Montant (DH)</label>
+      <input type="number" id="fra-montant" placeholder="250">
+    </div>
+    <div class="form-row">
+      <label>Catégorie</label>
+      <select id="fra-cat">
+        <option value="Ménage">🧹 Ménage</option>
+        <option value="Réparation">🔧 Réparation</option>
+        <option value="Équipement">🛋️ Équipement</option>
+        <option value="Eau/Élec">⚡ Eau / Électricité</option>
+        <option value="Aménagement">🎨 Aménagement</option>
+        <option value="Commission frère">🤝 Commission frère</option>
+        <option value="Autre">📌 Autre</option>
+      </select>
+    </div>
+  </div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeModal('fra')">Annuler</button>
+    <button class="btn" onclick="saveFra()">Enregistrer</button>
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast">✓ Enregistré</div>
+
+<script>
+// ===== SUPABASE CONFIG =====
+const SUPABASE_URL = 'https://lyuvxjzfncoywrnaqkdy.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5dXZ4anpmbmNveXdybmFxa2R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4NTkxNTEsImV4cCI6MjA5NzQzNTE1MX0.9AP8vqZ83iic3SzNCEk2tzSwV-69OSktkDhXeitQrjg';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const KEY_CAL = 'villa_cal_month'; // calendar position stays local per device, not shared data
+
+let reservations = [];
+let paiements = [];
+let frais = [];
+let calMonth = { year: 2026, month: 6 }; // juillet = index 6
+
+async function load() {
+  try {
+    const { data, error } = await sb.from('reservations').select('*').order('id');
+    if (error) throw error;
+    reservations = (data || []).map(r => ({ id: r.id, appt: r.appt, nom: r.nom, tel: r.tel, arrive: r.arrive, depart: r.depart, prix: r.prix, statut: r.statut, notes: r.notes }));
+  } catch (e) { console.error('Erreur chargement réservations:', e); reservations = []; }
+
+  try {
+    const { data, error } = await sb.from('paiements').select('*').order('id');
+    if (error) throw error;
+    paiements = (data || []).map(p => ({ id: p.id, appt: p.appt, nom: p.nom, date: p.date, montant: p.montant, mode: p.mode, type: p.type, notes: p.notes }));
+  } catch (e) { console.error('Erreur chargement paiements:', e); paiements = []; }
+
+  try {
+    const { data, error } = await sb.from('frais').select('*').order('id');
+    if (error) throw error;
+    frais = (data || []).map(f => ({ id: f.id, date: f.date, desc: f.description, montant: f.montant, appt: f.appt, cat: f.categorie }));
+  } catch (e) { console.error('Erreur chargement frais:', e); frais = []; }
+
+  const localCal = localStorage_safe_get(KEY_CAL);
+  if (localCal) { try { calMonth = JSON.parse(localCal); } catch {} }
+
+  renderAll();
+}
+
+// localStorage isn't reliable in all embed contexts, so wrap safely
+function localStorage_safe_get(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function localStorage_safe_set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+
+// live sync: reload data when another device changes it
+sb.channel('villa-sync')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => load())
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements' }, () => load())
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'frais' }, () => load())
+  .subscribe();
+
+
+// ===== HELPERS =====
+function nights(a, d) {
+  const ms = new Date(d) - new Date(a);
+  return Math.max(0, Math.round(ms / 86400000));
+}
+function total(r) { return nights(r.arrive, r.depart) * r.prix; }
+function fmt(n) { return Number(n).toLocaleString('fr-MA') + ' DH'; }
+function fmtDate(s) {
+  if (!s) return '—';
+  const d = new Date(s + 'T12:00:00');
+  return d.toLocaleDateString('fr-MA', { day:'2-digit', month:'short' });
+}
+function badge(statut) {
+  const map = { 'confirmé':'badge-conf', 'annulé':'badge-cancel', 'en attente':'badge-pend', 'payé':'badge-paid', 'partiel':'badge-partial', 'impayé':'badge-unpaid' };
+  return `<span class="badge ${map[statut]||'badge-pend'}">${statut}</span>`;
+}
+
+// ===== VIEWS =====
+function showView(v) {
+  document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(x => x.classList.remove('active'));
+  document.getElementById('view-' + v).classList.add('active');
+  const idx = ['dashboard','reservations','paiements','frais'].indexOf(v);
+  document.querySelectorAll('.nav-btn')[idx].classList.add('active');
+  renderAll();
+}
+
+// ===== RENDER DASHBOARD =====
+function renderDashboard() {
+  const revTotal = paiements.reduce((s, p) => s + Number(p.montant), 0);
+  const fraTotal = frais.reduce((s, f) => s + Number(f.montant), 0);
+  const net = revTotal - fraTotal;
+  const nbRes = reservations.filter(r => r.statut !== 'annulé').length;
+
+  document.getElementById('kpi-row').innerHTML = `
+    <div class="kpi green-k"><div class="kpi-label">Revenus encaissés</div><div class="kpi-val">${Number(revTotal).toLocaleString('fr-MA')}<span class="unit">DH</span></div><div class="kpi-note">${paiements.length} paiements</div></div>
+    <div class="kpi red-k"><div class="kpi-label">Frais & Dépenses</div><div class="kpi-val">${Number(fraTotal).toLocaleString('fr-MA')}<span class="unit">DH</span></div><div class="kpi-note">${frais.length} opérations</div></div>
+    <div class="kpi accent"><div class="kpi-label">Résultat net</div><div class="kpi-val" style="color:${net>=0?'var(--green)':'var(--red)'}">${Number(Math.abs(net)).toLocaleString('fr-MA')}<span class="unit">DH</span></div><div class="kpi-note">${net>=0?'Bénéfice':'Déficit'}</div></div>
+    <div class="kpi gold-k"><div class="kpi-label">Réservations actives</div><div class="kpi-val">${nbRes}<span class="unit">séj.</span></div><div class="kpi-note">sur 5 appts</div></div>
+  `;
+
+  // solde by appt
+  const today = new Date().toISOString().split('T')[0];
+  const revByAppt = {};
+  for (let i=2;i<=6;i++) revByAppt[i]=0;
+  paiements.forEach(p => { if(revByAppt[p.appt]!==undefined) revByAppt[p.appt]+=Number(p.montant); });
+
+  const occupied = new Set();
+  reservations.forEach(r => {
+    if (r.statut === 'confirmé' && r.arrive <= today && r.depart > today) occupied.add(r.appt);
+  });
+
+  let apptHtml = '';
+  for (let i=2;i<=6;i++) {
+    const isOcc = occupied.has(String(i));
+    apptHtml += `<div class="appart-tile${isOcc?' occupied':''}">
+      <div class="a-num">${i}</div>
+      <div class="a-name">Appart ${i}</div>
+      <div class="a-status">${isOcc?'🟠 Occupé':'🟢 Libre'}</div>
+      <div class="a-rev">${Number(revByAppt[i]).toLocaleString('fr-MA')} DH</div>
+    </div>`;
+  }
+  document.getElementById('apparts-grid').innerHTML = apptHtml;
+
+  // solde banner
+  document.getElementById('solde-banner').innerHTML = `
+    <div class="solde-item"><div class="s-val" style="color:var(--green)">${Number(revTotal).toLocaleString('fr-MA')} DH</div><div class="s-label">Total encaissé</div></div>
+    <div style="color:var(--muted);font-size:20px;">−</div>
+    <div class="solde-item"><div class="s-val" style="color:var(--red)">${Number(fraTotal).toLocaleString('fr-MA')} DH</div><div class="s-label">Total frais</div></div>
+    <div style="color:var(--muted);font-size:20px;">=</div>
+    <div class="solde-item"><div class="s-val" style="color:${net>=0?'var(--accent)':'var(--red)'}">${net>=0?'+':'−'}${Number(Math.abs(net)).toLocaleString('fr-MA')} DH</div><div class="s-label">Résultat net</div></div>
+    <div class="solde-item"><div class="s-val" style="color:var(--gold)">${nbRes}/5</div><div class="s-label">Appts réservés</div></div>
+  `;
+
+  renderCalendar();
+
+  // recent res
+  const sorted = [...reservations].sort((a,b) => b.id - a.id).slice(0,5);
+  let html = '<div class="table-wrap"><div class="table-head res-head"><div>Appt</div><div>Locataire</div><div>Arrivée</div><div>Départ</div><div>Nuits</div><div>Total</div><div>Statut</div></div>';
+  if (!sorted.length) html += '<div class="empty"><div class="empty-icon">🗓</div><p>Aucune réservation</p></div>';
+  sorted.forEach(r => {
+    html += `<div class="table-row res-grid">
+      <div><span style="color:var(--accent);font-weight:700">A${r.appt}</span></div>
+      <div><div style="font-weight:600">${r.nom}</div><div style="font-size:11px;color:var(--muted)">${r.tel||''}</div></div>
+      <div>${fmtDate(r.arrive)}</div>
+      <div>${fmtDate(r.depart)}</div>
+      <div>${nights(r.arrive, r.depart)} n.</div>
+      <div style="font-weight:600;color:var(--gold)">${fmt(total(r))}</div>
+      <div>${badge(r.statut)}</div>
+    </div>`;
+  });
+  html += '</div>';
+  document.getElementById('recent-res').innerHTML = html;
+}
+
+// ===== CALENDAR =====
+function renderCalendar() {
+  const { year, month } = calMonth;
+  const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date();
+
+  // collect reserved days this month
+  const resDays = new Set();
+  reservations.forEach(r => {
+    if (r.statut === 'annulé') return;
+    const start = new Date(r.arrive + 'T12:00:00');
+    const end = new Date(r.depart + 'T12:00:00');
+    for (let d = new Date(start); d < end; d.setDate(d.getDate()+1)) {
+      if (d.getFullYear() === year && d.getMonth() === month) resDays.add(d.getDate());
+    }
+  });
+
+  let html = `<div class="cal-title"><span>${monthNames[month]} ${year}</span></div>`;
+  html += '<div class="cal-grid">';
+  ['Di','Lu','Ma','Me','Je','Ve','Sa'].forEach(d => html += `<div class="cal-day-label">${d}</div>`);
+
+  const offset = firstDay;
+  for (let i=0;i<offset;i++) html += '<div class="cal-day empty"></div>';
+  for (let d=1;d<=daysInMonth;d++) {
+    const isToday = today.getFullYear()===year && today.getMonth()===month && today.getDate()===d;
+    const hasRes = resDays.has(d);
+    const isPast = new Date(year,month,d) < new Date(today.getFullYear(),today.getMonth(),today.getDate());
+    html += `<div class="cal-day${isToday?' today':''}${hasRes?' has-res':''}${isPast&&!isToday?' past':''}">
+      ${d}<div class="cal-dot"></div>
+    </div>`;
+  }
+  html += '</div>';
+  document.getElementById('cal-month').innerHTML = html;
+  document.querySelector('.section-title').textContent = monthNames[month] + ' ' + year;
+}
+
+function changeMonth(dir) {
+  calMonth.month += dir;
+  if (calMonth.month > 11) { calMonth.month = 0; calMonth.year++; }
+  if (calMonth.month < 0) { calMonth.month = 11; calMonth.year--; }
+  localStorage_safe_set(KEY_CAL, JSON.stringify(calMonth));
+  renderCalendar();
+}
+
+// ===== RENDER RESERVATIONS =====
+function renderReservations() {
+  const body = document.getElementById('res-table-body');
+  if (!reservations.length) { body.innerHTML = '<div class="empty"><div class="empty-icon">🗓</div><p>Aucune réservation — cliquez sur "+ Nouvelle réservation"</p></div>'; return; }
+  const sorted = [...reservations].sort((a,b) => a.arrive > b.arrive ? 1 : -1);
+  body.innerHTML = sorted.map(r => `<div class="table-row res-grid">
+    <div><span style="color:var(--accent);font-weight:700">A${r.appt}</span></div>
+    <div><div style="font-weight:600">${r.nom}</div><div style="font-size:11px;color:var(--muted)">${r.tel||''}</div></div>
+    <div>${fmtDate(r.arrive)}</div>
+    <div>${fmtDate(r.depart)}</div>
+    <div>${nights(r.arrive,r.depart)} n.</div>
+    <div style="font-weight:600;color:var(--gold)">${fmt(total(r))}</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${badge(r.statut)}<button class="btn danger sm" onclick="deleteRes(${r.id})">✕</button></div>
+  </div>`).join('');
+}
+
+// ===== RENDER PAIEMENTS =====
+function renderPaiements() {
+  const body = document.getElementById('pay-table-body');
+  if (!paiements.length) { body.innerHTML = '<div class="empty"><div class="empty-icon">💵</div><p>Aucun paiement enregistré</p></div>'; return; }
+  const sorted = [...paiements].sort((a,b) => b.date > a.date ? 1 : -1);
+  body.innerHTML = sorted.map(p => `<div class="table-row pay-grid">
+    <div><span style="color:var(--accent);font-weight:700">A${p.appt}</span></div>
+    <div><div style="font-weight:600">${p.nom}</div><div style="font-size:11px;color:var(--muted)">${p.notes||''}</div></div>
+    <div>${fmtDate(p.date)}</div>
+    <div style="font-weight:700;color:var(--green)">${fmt(p.montant)}</div>
+    <div><span class="badge badge-conf">${p.mode}</span></div>
+    <div style="display:flex;gap:6px;align-items:center">${badge(p.type==='Paiement complet'?'payé':p.type==='Acompte'?'partiel':'partiel')}<button class="btn danger sm" onclick="deletePay(${p.id})">✕</button></div>
+  </div>`).join('');
+}
+
+// ===== RENDER FRAIS =====
+function renderFrais() {
+  const body = document.getElementById('fra-table-body');
+  if (!frais.length) { body.innerHTML = '<div class="empty"><div class="empty-icon">🔧</div><p>Aucun frais enregistré</p></div>'; return; }
+  const sorted = [...frais].sort((a,b) => b.date > a.date ? 1 : -1);
+  body.innerHTML = sorted.map(f => `<div class="table-row fra-grid">
+    <div>${fmtDate(f.date)}</div>
+    <div style="font-weight:600">${f.desc}</div>
+    <div style="font-weight:700;color:var(--red)">${fmt(f.montant)}</div>
+    <div style="color:var(--muted)">${f.appt==='Commun'?'Villa':f.appt?'A'+f.appt:'—'}</div>
+    <div style="display:flex;gap:6px;align-items:center"><span class="badge badge-pend">${f.cat}</span><button class="btn danger sm" onclick="deleteFra(${f.id})">✕</button></div>
+  </div>`).join('');
+}
+
+function renderAll() {
+  renderDashboard();
+  renderReservations();
+  renderPaiements();
+  renderFrais();
+}
+
+// ===== MODALS =====
+function openModal(type) {
+  const today = new Date().toISOString().split('T')[0];
+  if (type==='res') {
+    document.getElementById('res-arrive').value = today;
+    document.getElementById('res-nom').value='';
+    document.getElementById('res-tel').value='';
+    document.getElementById('res-prix').value='';
+    document.getElementById('res-notes').value='';
+    document.getElementById('modal-res').classList.remove('hidden');
+  } else if (type==='pay') {
+    document.getElementById('pay-date').value = today;
+    document.getElementById('pay-nom').value='';
+    document.getElementById('pay-montant').value='';
+    document.getElementById('pay-notes').value='';
+    document.getElementById('modal-pay').classList.remove('hidden');
+  } else if (type==='fra') {
+    document.getElementById('fra-date').value = today;
+    document.getElementById('fra-desc').value='';
+    document.getElementById('fra-montant').value='';
+    document.getElementById('modal-fra').classList.remove('hidden');
+  }
+}
+function closeModal(type) {
+  document.getElementById('modal-'+type).classList.add('hidden');
+}
+
+// ===== SAVE =====
+async function saveRes() {
+  const nom = document.getElementById('res-nom').value.trim();
+  const arrive = document.getElementById('res-arrive').value;
+  const depart = document.getElementById('res-depart').value;
+  const prix = Number(document.getElementById('res-prix').value);
+  if (!nom || !arrive || !depart || !prix) { alert('Veuillez remplir tous les champs obligatoires'); return; }
+  const payload = { appt: document.getElementById('res-appt').value, nom, tel: document.getElementById('res-tel').value, arrive, depart, prix, statut: document.getElementById('res-statut').value, notes: document.getElementById('res-notes').value };
+  const { error } = await sb.from('reservations').insert(payload);
+  if (error) { alert('Erreur d\'enregistrement : ' + error.message); return; }
+  closeModal('res'); await load(); showToast('Réservation enregistrée');
+}
+
+async function savePay() {
+  const nom = document.getElementById('pay-nom').value.trim();
+  const montant = Number(document.getElementById('pay-montant').value);
+  const date = document.getElementById('pay-date').value;
+  if (!nom || !montant || !date) { alert('Veuillez remplir tous les champs'); return; }
+  const payload = { appt: document.getElementById('pay-appt').value, nom, date, montant, mode: document.getElementById('pay-mode').value, type: document.getElementById('pay-type').value, notes: document.getElementById('pay-notes').value };
+  const { error } = await sb.from('paiements').insert(payload);
+  if (error) { alert('Erreur d\'enregistrement : ' + error.message); return; }
+  closeModal('pay'); await load(); showToast('Paiement enregistré');
+}
+
+async function saveFra() {
+  const desc = document.getElementById('fra-desc').value.trim();
+  const montant = Number(document.getElementById('fra-montant').value);
+  const date = document.getElementById('fra-date').value;
+  if (!desc || !montant || !date) { alert('Veuillez remplir tous les champs'); return; }
+  const payload = { date, description: desc, montant, appt: document.getElementById('fra-appt').value, categorie: document.getElementById('fra-cat').value };
+  const { error } = await sb.from('frais').insert(payload);
+  if (error) { alert('Erreur d\'enregistrement : ' + error.message); return; }
+  closeModal('fra'); await load(); showToast('Frais enregistré');
+}
+
+// ===== DELETE =====
+async function deleteRes(id) {
+  if (!confirm('Supprimer cette réservation ?')) return;
+  const { error } = await sb.from('reservations').delete().eq('id', id);
+  if (error) { alert('Erreur de suppression : ' + error.message); return; }
+  await load();
+}
+async function deletePay(id) {
+  if (!confirm('Supprimer ce paiement ?')) return;
+  const { error } = await sb.from('paiements').delete().eq('id', id);
+  if (error) { alert('Erreur de suppression : ' + error.message); return; }
+  await load();
+}
+async function deleteFra(id) {
+  if (!confirm('Supprimer ce frais ?')) return;
+  const { error } = await sb.from('frais').delete().eq('id', id);
+  if (error) { alert('Erreur de suppression : ' + error.message); return; }
+  await load();
+}
+
+// ===== TOAST =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = '✓ ' + msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.add('hidden'); });
+});
+
+// ===== INIT =====
+load();
+</script>
+</body>
+</html>
