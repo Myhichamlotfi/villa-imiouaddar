@@ -1,0 +1,36 @@
+name: Sauvegarde quotidienne Villa Imiouaddar
+
+on:
+  schedule:
+    # Tous les jours à 23:00 UTC (= 00:00 au Maroc en été / 23:00 en hiver)
+    - cron: '0 23 * * *'
+  workflow_dispatch: {}  # permet aussi de lancer la sauvegarde manuellement depuis GitHub
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Exécuter la sauvegarde
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python backup_supabase.py
+
+      - name: Enregistrer la sauvegarde dans le dépôt
+        run: |
+          git config user.name "Sauvegarde automatique"
+          git config user.email "backup@villa-imiouaddar.local"
+          git add backups/
+          git diff --staged --quiet || git commit -m "Sauvegarde automatique $(date -u +'%Y-%m-%d')"
+          git push
